@@ -1,0 +1,390 @@
+---
+title: "StatComp Project 1: Simulation and sampling"
+author: "Heather Napthine (s2065896)"
+output:
+  html_document:
+    number_sections: yes
+  pdf_document:
+    number_sections: yes
+header-includes:
+  - \newcommand{\bm}[1]{\boldsymbol{#1}}
+  - \newcommand{\mat}[1]{\begin{bmatrix}#1\end{bmatrix}}
+---
+
+```{r setup, include = FALSE}
+# Modify this setup code chunk to set options
+# or add extra packages etc if needed.
+# See the project instructions for more details
+# on what code to show, and where/how.
+
+# Set default code chunk options
+knitr::opts_chunk$set(
+  echo = TRUE,
+  eval = TRUE
+)
+
+suppressPackageStartupMessages(library(tidyverse))
+theme_set(theme_bw())
+suppressPackageStartupMessages(library(StatCompLab))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(grid))
+suppressPackageStartupMessages(library(gridExtra))
+suppressPackageStartupMessages(library(mvtnorm))
+
+# To give the same random number sequence every time the document is knit:ed,
+# making it easier to discuss the specific numbers in the text:
+set.seed(12345L)
+```
+
+```{r code=readLines("code.R"), eval=TRUE, echo=FALSE}
+# Do not change this code chunk
+# Load function definitions
+source("code.R")
+```
+
+# Confidence interval approximation assessment
+
+We wish to consider the Poisson model for observations $\textbf{y} = \{y_1, \dots , y_n\}:$
+
+$$y_i \sim \text{Poisson}(\lambda), \text{ independent for } i = 1, \dots, n.$$
+that has the joint probability mass function $$p(\textbf{y}|\lambda) = \text{exp}(-n\lambda)\prod_{i=1}^n\frac{\lambda^{y_i}}{y_i!}$$
+where we will consider the parameterisation $\theta = \lambda$ with maximum likelihood estimator $\hat{\theta}_{ML} = \frac{1}{n}\sum_{i=1}^ny_i = \overline{y}$. We can then use this parameterisation to estimate the coverage of the construction of confidence intervals from samples from a $Poisson(\lambda)$ distribution.
+
+To do this we will use the approximation that for large $n$, $$\frac{\hat{\theta} - \theta}{\sqrt{\hat{\theta}/n}} \sim N(0,1).$$
+This then allows us to construct confidence intervals using the following formula: $$ CI_\theta = \left(\hat{\theta} - z_{1 - \alpha/2}\cdot\sqrt{\hat{\theta}/n } , \,\,\,\,\, \hat{\theta} - z_\alpha/2\cdot\sqrt{\hat{\theta}/n}\,\, \right).$$
+To account for the fact that our $Poisson(\lambda)$ distribution takes positive values only we replace the left side of the interval with $0$ is if it negative. In order to investigate the coverage of this interval we use the function $\textbf{estimate_coverage}$, which will calculate a $100\cdot(1 - \alpha)\%$ confidence interval, for $\lambda$ using $n$ samples from a $Poisson(\lambda)$ distribution and calculate the coverage of $N = 10000$ replications of these intervals. To compare how different values of $\lambda$ and $n$ affect the coverage estimate we will first fix $n = 2$ and plot the coverage estimate against $100$ values of $\lambda$, for $\lambda = (1,2,\dots,100)$. We will then fix $\lambda = 2$ and plot the coverage estimate against $100$ values of $n$, for $n = (1,2,\dots,100)$.
+```{r, eval=TRUE, echo=FALSE}
+
+#' Create a vector of the estimated coverage for 100 values of lambda.
+plottingvector1 <- c()
+for (i in (1:100)){
+  plottingvector1 <- append(plottingvector1,
+                            ((estimate_coverage(CI, alpha = 0.1, N = 10000, 2, i))))
+}
+
+#' Create a vector of the estimated coverage for n in (1:100).
+plottingvector2 <- c()
+for (i in (1:100)){
+  plottingvector2 <- append(plottingvector2,
+                            ((estimate_coverage(CI, alpha = 0.1, N = 10000, i, 3))))
+}  
+
+#' Plot the results for the estimated coverage against varying lambda.
+data1 <- data.frame(x = c(1:100), y = plottingvector1)
+lambdaplot <- ggplot(data1) + geom_point(aes(x, y)) + 
+  labs(x = "lambda") + labs(y = "Coverage") +
+  labs(title = "Coverage against Parameter Variation") +
+  labs(caption = "(based on data from a poisson(n) distribution for n in (1:100))") +
+  theme(plot.title = element_text(size=10))
+
+#' Plot the results for the estimated coverage against varying sample size.
+data2 <- data.frame(x = c(1:100), y = plottingvector2)
+nplot <- ggplot(data2) + geom_point(aes(x, y)) +
+  labs(x = "n") + labs(y = "Coverage") +
+  labs(title = "Coverage against Sample Size", ) +
+  labs(caption = "(based on data from a poisson(2) distribution)") +
+  theme(plot.title = element_text(size=10))
+
+#' Arrange the two plots in a grid so they can we easily analysed.
+grid.arrange(lambdaplot, nplot, nrow = 1)
+
+
+
+```
+
+
+In the first plot, where $\lambda$ is varied, we see that around half of the intervals achieve the desired 90% coverage level while the other half do not.
+
+As expected, we see that coverage increases as the value of $\lambda$ increases, with particularly low coverage for values of $\lambda$ very close to zero. This lower coverage for lower values of $\lambda$, is due to the width of our interval. This is because the width of each confidence interval is proportional to $\sqrt{\hat{\lambda}}$, where $\hat{\lambda}$ is the mean of our data. Thus, since the expected value of a poisson($\lambda$) distribution is just $\lambda$ itself, the mean of our randomly sampled data should be roughly centred around this value of $\lambda$. Consequently, the width of each confidence interval should also be roughly proportional to this $\lambda$. Thus, we expect narrower confidence intervals, for smaller values of $\lambda$, which in turn results in a lower probability that the true value of $\lambda$ lies within these estimated intervals, hence the lower coverage.
+
+In the second plot, where n is varied, we see much higher coverage, with almost all of the estimated intervals achieving the desired 90% coverage level.
+
+The trend in the second plot shows increasing coverage as n increases. This is because the larger the number of sampled data points, the closer the mean of these data points should be to the true value $\lambda$ from the poisson($\lambda$) distribution that we sampled from. Again, this is because an increased sample size reduces the effect that random data points, which may lie further from the expected value of our  poisson($\lambda$) distribution, (which is just our true value of $\lambda$), will have on the overall mean of the data. Thus, we expect that for larger sample sizes that the centre of our calculated confidence interval should lie closer to the true value of  $\lambda$ itself, resulting in higher coverage for larger n.
+
+
+
+
+
+
+
+# 3D printer materials prediction
+
+We wish to estimate the parameters of a Bayesian statistical model of material use in a 3D printer. We will condiser the differences in the printer CAD weight approximations for the actual weights of the material. If the CAD system and printer were both perfect, the CAD weight and actual weight values would be equal for each object. In reality however, there are random variations, for example, due to varying humidity and
+temperature, and systematic deviations.  The basic physics assumption is that the error in the CAD software calculation of the weight is proportional to the weight itself. We first plot the data to investigate this assumption.
+
+
+
+
+```{r, eval=TRUE, echo=FALSE}
+
+#' Create an initial plot of the data by creating a data.frame
+#' and then using ggplot
+data <- data.frame(x = (filament1$Actual_Weight), y = abs(filament1$CAD_Weight - filament1$Actual_Weight))
+ggplot(data) + geom_point(aes(x, y)) +
+  labs(x = "Actual Weight") + labs(y = "Absolute Error in CAD Weight") +
+  labs(title = "Error in CAD Weight vs Actual Weight") +
+  labs(caption = "(As proposed we see the error is proportional to the weight itself.)")
+
+```
+
+When looking at the data it’s clear that the variability of the data is indeed larger for larger values of the actual weight. Thus, the printer operator has made a simple physics analysis, and settled on a linear model for the actual weight. Denoting the CAD weight for observation $i$ by $x_i$, and the corresponding actual weight by $y_i$, the model can be defined by: $$y_i \sim \text{Normal}[\beta_1 + \beta_2x_i , \, \, \beta_3 + \beta_4x_i ^2].$$
+Where, also, in order to ensure positivity of the variance, the parameterisation $\theta = [\theta_1, \theta_2, \theta_3, \theta_4] = [\beta_1, \beta_2, log(\beta_3), log(\beta_4)]$ is introduced, and the printer operator assigns independent prior distributions as follows: $$\theta_1 \sim \text{Normal}(0, \, \gamma_1),$$ $$\theta_2 \sim \text{Normal}(1, \, \gamma_2),$$ $$\theta_3 \sim \text{LogExp}(\gamma_3),$$ $$\theta_4 \sim \text{LogExp}(\gamma_4).$$ We start by finding the prior density, $p(\theta)$, using the function $\textbf{log_prior_density}$ and the above distributions. We then create a function $\textbf{log_like}$ to calculate the observation log-likelihood, $p(y|\theta)$, for the model defined above. We can next use the sum of the outputs of these functions to return the log-posterior-density using the function $\textbf{log_posterior_density}$. This then allows us to find the mode $\mu$ of the log-posterior-density and to also evaluate the Hessian at this mode as well as finding the inverse of the negated Hessian, $\textbf{S}$. Now we let all $\gamma_i = 1, i = 1, 2, 3, 4$, and define a function $\textbf{gaussian}$ which uses the $\textbf{posterior_mode}$ function to evaluate $\textbf{S}$ at the
+mode, in order to obtain a multivariate Normal approximation, Normal$(\mu,\textbf{S})$ to the posterior distribution for $\theta$, using the starting values $\theta = \textbf{0}$.
+
+Finally we can combine all of the above to define a function, $\textbf{do_importance}$ which creates a data.frame with five columns, beta1, beta2, beta3, beta4, log_weights,
+containing the $\beta_i$ samples and normalised log-importance-weights. This will alllow us to construct a 90% Bayesian credible interval for each $\beta_i$ using importance sampling, where we use the multivariate Normal approximation outputted by our $\textbf{gaussian}$ function as the importance sampling distribution. First, in order to investigate the accuracy of our approximation we plot the CDF’s of the unweighted samples and the weighted samples, using stat_ecdf and stat_ewcdf, respectively.
+
+
+```{r, eval=TRUE, echo=FALSE, warning = FALSE}
+#' Question 2.7
+#'
+#'Setting parameters as specified by project.
+x<- filament1$CAD_Weight
+y<- filament1$Actual_Weight
+N <- 10000
+params <- c(1,1,1,1)
+theta_start <- c(0,0,0,0)
+
+#' Set mu and S using Posterior Mode Function
+mu <- posterior_mode(theta_start, x, y, params)[[1]]
+S <- posterior_mode(theta_start, x, y, params)[[3]]
+
+#' Create the data frame using the do_importance function
+df <- do_importance(theta_start, N, mu, S, x, y, params)
+
+#' Plot the empirical weighted CDFs together with the 
+#' un-weighted CDFs for each parameter, using ggplot.
+#' We start by creating each plot.
+beta1plot <- ggplot(df) + labs(y = "CDF") + labs(x = "Beta 1") +
+  stat_ewcdf(aes(beta1, weights = exp(NormalisedLogWeights), col = "Importance")) +
+  stat_ecdf(aes(beta1, col = "Unweighted")) 
+
+beta2plot <- ggplot(df) + labs(y = "CDF") + labs(x = "Beta 2") +
+  stat_ewcdf(aes(beta2, weights = exp(NormalisedLogWeights), col = "Importance")) +
+  stat_ecdf(aes(beta2, col = "Unweighted")) 
+
+beta3plot <- ggplot(df) + labs(y = "CDF") + labs(x = "Beta 3") +
+  stat_ewcdf(aes(beta3, weights = exp(NormalisedLogWeights), col = "Importance")) +
+  stat_ecdf(aes(beta3, col = "Unweighted")) 
+
+beta4plot <- ggplot(df) + labs(y = "CDF") + labs(x = "Beta 4") +
+  stat_ewcdf(aes(beta4, weights = exp(NormalisedLogWeights), col = "Importance")) +
+  stat_ecdf(aes(beta4, col = "Unweighted")) + 
+  theme(axis.text.x = element_text(size = 7))
+
+#'We now display the four plots above in a title grid, 
+#'using the GridExtra package.
+grid.arrange(beta1plot, beta2plot, beta3plot, beta4plot, nrow = 2,
+             top=textGrob("Empirical Weighted CDFs vs Un-weighted CDFs"))
+```
+
+
+We see from the plots of the empirical weighted CDFs together with the un-weighted CDFs for each parameter, that the importance sampling version is virtually indistinguishable from the true CDF of our data. This tells us that our weighted prior distribution for $y$, provides an excellent approximation to the true CDF. In turn, this means that the weighted CDF gives us an excellent estimation of our expectation of interest (the CAD weight).
+
+We now construct 90% credible intervals for each of the four model parameters, based on the importance sample.
+
+```{r, eval=TRUE, echo=FALSE}
+#' Construct 90% credible intervals for each of the four model parameters,
+#' based on the importance sample, using wquantile.
+beta1_interval <- wquantile(df[,1], probs = c(0.05, 0.95), weights = weights)
+beta2_interval <- wquantile(df[,2], probs = c(0.05, 0.95), weights = weights)
+logbeta3_interval <- wquantile(log(df[,3]), probs = c(0.05, 0.95), weights = weights)
+logbeta4_interval <- wquantile(log(df[,4]), probs = c(0.05, 0.95), weights = weights)
+
+#' Generate a 1-row, 2-column data.frame, of the credible intervals. 
+CIdataframe <- data.frame(rbind(beta1 = beta1_interval, beta2 = beta2_interval, beta3 = exp(logbeta3_interval), beta4= exp(logbeta4_interval)))
+colnames(CIdataframe) <- c("lower", "upper")
+
+CIdataframe
+```
+
+To aid our later analysis, we also produce a plot of these four intervals to help us examine their width and location.
+
+```{r, eval=TRUE, echo=FALSE}
+#' We now plot the 90% credible intervals for each of the four model parameters,
+#' based on the importance sample, and wquantile.
+#' This allows for a clearer visual representation of our results.
+  
+ggplot(CIdataframe, aes(c(1,2,3,4), lower)) +   
+  labs(x = paste("Beta Estimates")) + labs(y = "Prediction Interval") +
+  geom_errorbar(aes(ymin = lower, ymax = upper)) +
+  geom_text(aes(label=c("Beta1","Beta2","Beta3","Beta4")),hjust=1.2, vjust=1.1) +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+Finally, we plot the importance log-weights to see how they depend on the sampled $\beta$-values.
+
+```{r, eval=TRUE, echo=FALSE}
+#'We will now plot the importance log-weights to see how they depend on the sampled β-values.
+#'We again start by creating each plot.
+beta1weightplot <- ggplot(df) +  
+  geom_line(aes(x = df[,1], y = df[,5])) +   
+  labs(x = "Theta 1 = Beta 1") + labs(y = "Log Importance Weights")
+beta2weightplot <-ggplot(df) + 
+  geom_line(aes(x = df[,2], y = df[,5])) +   
+  labs(x = "Theta 2 = Beta 2") + labs(y = "Log Importance Weights")
+beta3weightplot <- ggplot(df) + 
+  geom_line(aes(x = log(df[,3]), y = df[,5])) +   
+  labs(x = "Beta 3") + labs(y = "Log Importance Weights")
+beta4weightplot <- ggplot(df) + 
+  geom_line(aes(x = log(df[,4]), y = df[,5])) +   
+  labs(x = "Beta 4") + labs(y = "Log Importance Weights")
+
+#'We now display the four plots above in a title grid, 
+#'using the GridExtra package.
+grid.arrange(beta1weightplot, beta2weightplot, beta3weightplot, beta4weightplot, nrow = 2, top=textGrob("Log Importance Weights vs Parameter Values"))
+
+```
+
+
+As stated earlier we saw that our weighted prior distribution for $y$, provides an excellent approximation to the true CDF. From an importance sampling point of view, we see that this tells us that our weighted random samples provide us with an excellent approximation to the true CDF. As such, we can ensure an accurate estimation of this expectation of interest, (the CAD weight), and thus the importance sampling technique is accurate in its predictions of the variability of our data. 
+
+Since the importance sampling technique provides a good approximation to the true CDF, we would expect that plotting the importance weights against the sampled $\beta_i$ values should show that the weights are roughly the same for each value of the different parameters, or equivalently, that each of the sampled values of the $\beta_i$ should have roughly equal importance in the estimation of the posterior expectation, and in turn the importance sampling should produce a very stable estimate with low uncertainty. Observing the plots, this is what we see. While there are a few spikes corresponding to a handful of values for each parameter with decreased or increased weighting, we see that, on the whole, most of the $10000$ sampled values of the $\beta_i$ have roughly equal weighting. Despite this roughly equal weighting however, we do see a tailing off in the plot for the weights against the sample values of $\beta_3$, thus it may be advantageous to further investigate these values of  $\beta_3$, and look to see if they correspond to possible sources of error in our overall approximation for this parameter. However, overall, these plots do confirm our conclusion that for the given data, performing weighted sampling from a multivariate normal distribution does indeed provide us with a good approximation to the true CDF.
+
+Now we can also consider the results from the 3D printer application point of view. In establishing that our importance sampling provided a good estimation of the distributions of the model parameters, we also establish that the importance sampling provides accurate information as to which input values have the greatest impact on the parameter that we are estimating, which was, in this case, the $y_i$ or actual weight values. Since our importance sampling was ‘successful’, we can use it to allow us to identify 'important' values, in the model, ie. the values that have the greatest impact on the error in our CAD weight approximations. This will allow us to reduce the variance of this estimator, or equivalently, reduce the error in the CAD weight approximations for the actual weight of our materials.
+
+We were also given that the actual weight, denoted by $y_i$, in the model is distributed as $y_i \sim$ Normal$[\beta_1 + \beta_2x_i , \beta_3 + \beta_4x_i ^2]$. Thus, in order for the actual weights, the $y_i$, to be as close as possible to the CAD approximations, the $x_i$, we would like the $y_i$, to be distributed as closely to $y_i \sim$ Normal$[x _i , 0 ]$, as possible, ie. we want the actual weights to have the same mean as the CAD weights, with minimal variance. This is equivalent to $[\beta_1, \beta_2, \beta_3, \beta_4] = [0, 1, 0, 0]$ or as close to this as we can. In order to further emphasize where the estimates for our parameter lie, we can observe the plot of the prediction intervals for each of the four parameters. We see that the credible intervals for $\beta_1$ and $\beta_4$ both enclose the desired value for these parameters, both of which being 0. While this is promising for both parameters, the interval for $\beta_4$ is far narrower, thus raising $\beta_1$ as a greater cause for concern. While the credible interval for $\beta_3$ does not enclose the desired value for this parameter, of 0, it is incredibly close to it. However it is still far wider than the intervals for $\beta_2$ and $\beta_4$, again raising it as a possible avenue of investigation. The interval for $\beta_2$ also does not enclose the desired value for this parameter, 1, and in fact misses it by a noticeable margin. The intervals for these two parameters, $\beta_2$ and $\beta_4$, in turn, encourage us to further analyse the importance sampling plots, for these parameters, in order to try and identify which input values have the greatest weighting, and impact on the estimates for these parameters. This identification on where some of the underlying cause of the error may lie, may help in the overall reduction of the error in our CAD weight approximations. 
+
+
+
+
+
+
+# Code Appendix
+
+$\textbf{Analysis Code}$
+```{r,eval=FALSE, echo=TRUE}
+
+#' Create a vector of the estimated coverage for 100 values of lambda.
+plottingvector1 <- c()
+for (i in (1:100)){
+  plottingvector1 <- append(plottingvector1,
+                            ((estimate_coverage(CI, alpha = 0.1, N = 10000, 2, i))))
+}
+
+#' Create a vector of the estimated coverage for n in (1:100).
+plottingvector2 <- c()
+for (i in (1:100)){
+  plottingvector2 <- append(plottingvector2,
+                            ((estimate_coverage(CI, alpha = 0.1, N = 10000, i, 3))))
+}  
+
+#' Plot the results for the estimated coverage against varying lambda.
+data1 <- data.frame(x = c(1:100), y = plottingvector1)
+lambdaplot <- ggplot(data1) + geom_point(aes(x, y)) + 
+  labs(x = "lambda") + labs(y = "Coverage") +
+  labs(title = "Coverage against Parameter Variation") +
+  labs(caption = "(based on data from a poisson(n) distribution for n in (1:100))") +
+  theme(plot.title = element_text(size=10))
+
+#' Plot the results for the estimated coverage against varying sample size.
+data2 <- data.frame(x = c(1:100), y = plottingvector2)
+nplot <- ggplot(data2) + geom_point(aes(x, y)) +
+  labs(x = "n") + labs(y = "Coverage") +
+  labs(title = "Coverage against Sample Size", ) +
+  labs(caption = "(based on data from a poisson(2) distribution)") +
+  theme(plot.title = element_text(size=10))
+
+#' Arrange the two plots in a grid so they can we easily analysed.
+grid.arrange(lambdaplot, nplot, nrow = 1)
+
+
+#' Create an initial plot of the data by creating a data.frame
+#' and then using ggplot
+data <- data.frame(x = (filament1$Actual_Weight), y = abs(filament1$CAD_Weight - filament1$Actual_Weight))
+ggplot(data) + geom_point(aes(x, y)) +
+  labs(x = "Actual Weight") + labs(y = "Absolute Error in CAD Weight") +
+  labs(title = "Error in CAD Weight vs Actual Weight") +
+  labs(caption = "(As proposed we see the error is proportional to the weight itself.)")
+
+#' Question 2.7
+#'
+#'Setting parameters as specified by project.
+x<- filament1$CAD_Weight
+y<- filament1$Actual_Weight
+N <- 10000
+params <- c(1,1,1,1)
+theta_start <- c(0,0,0,0)
+
+#' Set mu and S using Posterior Mode Function
+mu <- posterior_mode(theta_start, x, y, params)[[1]]
+S <- posterior_mode(theta_start, x, y, params)[[3]]
+
+#' Create the data frame using the do_importance function
+df <- do_importance(theta_start, N, mu, S, x, y, params)
+
+#' Plot the empirical weighted CDFs together with the 
+#' un-weighted CDFs for each parameter, using ggplot.
+#' We start by creating each plot.
+beta1plot <- ggplot(df) + labs(y = "CDF") + labs(x = "Beta 1") +
+  stat_ewcdf(aes(beta1, weights = exp(NormalisedLogWeights), col = "Importance")) +
+  stat_ecdf(aes(beta1, col = "Unweighted")) 
+
+beta2plot <- ggplot(df) + labs(y = "CDF") + labs(x = "Beta 2") +
+  stat_ewcdf(aes(beta2, weights = exp(NormalisedLogWeights), col = "Importance")) +
+  stat_ecdf(aes(beta2, col = "Unweighted")) 
+
+beta3plot <- ggplot(df) + labs(y = "CDF") + labs(x = "Beta 3") +
+  stat_ewcdf(aes(beta3, weights = exp(NormalisedLogWeights), col = "Importance")) +
+  stat_ecdf(aes(beta3, col = "Unweighted")) 
+
+beta4plot <- ggplot(df) + labs(y = "CDF") + labs(x = "Beta 4") +
+  stat_ewcdf(aes(beta4, weights = exp(NormalisedLogWeights), col = "Importance")) +
+  stat_ecdf(aes(beta4, col = "Unweighted")) + 
+  theme(axis.text.x = element_text(size = 7))
+
+#'We now display the four plots above in a title grid, 
+#'using the GridExtra package.
+grid.arrange(beta1plot, beta2plot, beta3plot, beta4plot, nrow = 2,
+             top=textGrob("Empirical Weighted CDFs vs Un-weighted CDFs"))
+
+#' Construct 90% credible intervals for each of the four model parameters,
+#' based on the importance sample, using wquantile.
+beta1_interval <- wquantile(df[,1], probs = c(0.05, 0.95), weights = weights)
+beta2_interval <- wquantile(df[,2], probs = c(0.05, 0.95), weights = weights)
+logbeta3_interval <- wquantile(log(df[,3]), probs = c(0.05, 0.95), weights = weights)
+logbeta4_interval <- wquantile(log(df[,4]), probs = c(0.05, 0.95), weights = weights)
+
+#' Generate a 1-row, 2-column data.frame, of the credible intervals. 
+CIdataframe <- data.frame(rbind(beta1 = beta1_interval, beta2 = beta2_interval, beta3 = exp(logbeta3_interval), beta4= exp(logbeta4_interval)))
+colnames(CIdataframe) <- c("lower", "upper")
+
+CIdataframe
+
+#' We now plot the 90% credible intervals for each of the four model parameters,
+#' based on the importance sample, and wquantile.
+#' This allows for a clearer visual representation of our results.
+  
+ggplot(CIdataframe, aes(c(1,2,3,4), lower)) +   
+  labs(x = paste("Beta Estimates")) + labs(y = "Prediction Interval") +
+  geom_errorbar(aes(ymin = lower, ymax = upper)) +
+  geom_text(aes(label=c("Beta1","Beta2","Beta3","Beta4")),hjust=1.2, vjust=1.1) +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+#'We will now plot the importance log-weights to see how they depend on the sampled β-values.
+#'We again start by creating each plot.
+beta1weightplot <- ggplot(df) +  
+  geom_line(aes(x = df[,1], y = df[,5])) +   
+  labs(x = "Theta 1 = Beta 1") + labs(y = "Log Importance Weights")
+beta2weightplot <-ggplot(df) + 
+  geom_line(aes(x = df[,2], y = df[,5])) +   
+  labs(x = "Theta 2 = Beta 2") + labs(y = "Log Importance Weights")
+beta3weightplot <- ggplot(df) + 
+  geom_line(aes(x = log(df[,3]), y = df[,5])) +   
+  labs(x = "Beta 3") + labs(y = "Log Importance Weights")
+beta4weightplot <- ggplot(df) + 
+  geom_line(aes(x = log(df[,4]), y = df[,5])) +   
+  labs(x = "Beta 4") + labs(y = "Log Importance Weights")
+
+#'We now display the four plots above in a title grid, 
+#'using the GridExtra package.
+grid.arrange(beta1weightplot, beta2weightplot, beta3weightplot, beta4weightplot, nrow = 2, top=textGrob("Log Importance Weights vs Parameter Values"))
+
+```
+
+$\textbf{Function Definitions}$
+```{r code=readLines("code.R"), eval=FALSE, echo=TRUE}
+# Do not change this code chunk
+```
